@@ -1,0 +1,77 @@
+
+name: Code Review (No Direct Access)
+on:
+  pull_request:
+    types: [opened, synchronize]
+    
+permissions:
+  contents: read  # Ensure repo checkout works
+  pull-requests: write  # Allow CodeRabbit to post comments
+  checks: write
+  security-events: write
+  id-token: write
+  actions: write
+
+
+jobs:
+  code_review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          repository: "Las14/textAnalyzer6"  # Ensure this is the correct repo name
+          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure this is set properly
+
+      - name: Run CodeRabbit Review
+        uses: coderabbitai/ai-pr-reviewer@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODERABBIT_API_KEY: ${{ secrets.CODERABBIT_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        with:
+          debug: true
+          review_simple_changes: true
+          review_comment_lgtm: false
+          openai_light_model: gpt-3.5-turbo
+          openai_heavy_model: gpt-3.5-turbo
+          
+          path_filters: '**/*'
+          system_message: >
+            Provide a thorough review of the code, including small optimizations, minor style issues, missing documentation, and best practices. Do not ignore minor issues.
+
+
+  codeguru:
+    name: AWS CodeGuru Reviewer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 17
+
+      - name: Build with Maven
+        run: mvn clean package --file text-analyzer-backend/pom.xml
+
+      - name: Run CodeGuru Reviewer
+        uses: aws-actions/codeguru-reviewer@v1.1
+        with:
+          build_path: text-analyzer-backend/target
+          s3_bucket: codeguru-reviewer-textanalyzer6
+
+      - name: Upload SARIF to S3
+        run: aws s3 cp codeguru-results.sarif.json s3://codeguru-reviewer-textanalyzer6/
+
+  

@@ -3,8 +3,7 @@ name: Code Review (No Direct Access)
 on:
   pull_request:
     types: [opened, synchronize]
-    branches:
-      - master
+    
 permissions:
   contents: read  # Ensure repo checkout works
   pull-requests: write  # Allow CodeRabbit to post comments
